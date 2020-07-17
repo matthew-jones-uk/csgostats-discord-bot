@@ -131,6 +131,13 @@ def get_ranks_cloudscraper(steam_id):
         return 'Cannot parse csgostats live data'
     return ranks
 
+def get_live_match(steam_id):
+    """Uses csgo game coordinator to get details of live game
+
+    Args:
+        steam_id (string): SteamID of user
+    """
+
 async def get_ranks(steam_id, update_message):
     status = get_ranks_cloudscraper(steam_id)
     if status == 'csgostats has blocked this request, try again in a moment':
