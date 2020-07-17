@@ -2,6 +2,7 @@ import json
 import random
 import discord
 import requests
+import csgo
 from pathlib import Path
 from asyncio import sleep
 from selenium import webdriver
