@@ -67,8 +67,9 @@ async def get_player_data_cloudscraper(steam_id):
         recaptcha={
         'provider': 'anticaptcha',
         'api_key': ANTICAPTCHA_KEY
-    }
+        }
     )
+    print(CLOUDSCRAPER_SESSION)
     #TODO: Try and make try/excepts cleaner
     max_attempts = 5
     while max_attempts > 0:
@@ -153,9 +154,8 @@ async def get_live_player(update_message):
     except:
         await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
         return
-    player = response.matches[random.randint(0,
-            len(response.matches))].roundstats_legacy.reservation.account_ids[random.randint(0,
-             len(response.matches.roundstats_legacy.reservation.account_ids))] #TODO: make random
+    match = random.choice(response.matches)
+    player = random.choice(match.roundstats_legacy.reservation.account_ids)
     await update_message.edit(content=SteamID(player).as_64)
 
 @steam.on('logged_on')
