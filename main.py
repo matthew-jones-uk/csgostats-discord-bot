@@ -5,12 +5,12 @@ import random
 import discord
 import requests
 import cloudscraper
+from pathlib import Path
+from asyncio import sleep
 from steam.client import SteamClient
 from steam.steamid import SteamID
 from csgo.client import CSGOClient
 from csgo.proto_enums import GCConnectionStatus
-from pathlib import Path
-from asyncio import sleep
 from selenium import webdriver
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.common.by import By
@@ -141,7 +141,7 @@ def get_ranks_cloudscraper(steam_id):
         return 'Cannot parse csgostats live data'
     return ranks
 
-def get_player_data_cloudscraper(steam_id):
+async def get_player_data_cloudscraper(steam_id):
     """Uses the cloudscraper library to get player information from csgostats.gg
 
     Args:
@@ -154,12 +154,17 @@ def get_player_data_cloudscraper(steam_id):
         'api_key': ANTICAPTCHA_KEY
     }
     )
-    print(scraper.recaptcha)
     #TODO: Try and make try/excepts cleaner
-    try:
-        page = scraper.get('https://www.csgostats.gg/player/{}'.format(steam_id)).text
-    except:
-        return 'Can\'t load csgostats page'
+    max_attempts = 5
+    while max_attempts > 0:
+        try:
+            page = scraper.get('https://www.csgostats.gg/player/{}'.format(steam_id)).text
+            break
+        except Exception as e:
+            print(e)
+            attempts-=1
+            await sleep(random.randint(1, 10)/10)
+            if attempts == 0: return 'Can\'t load csgostats page'
     try:
         soup = BeautifulSoup(page, 'html.parser')
     except:
@@ -173,19 +178,19 @@ def get_player_data_cloudscraper(steam_id):
     except:
         summary = '???'
     try:
+        rank_element = None
         rank_element = soup.find('img', width='92')
-        if 'data-cfsrc' in rank_element:
+        try:
             rank = rank_element['data-cfsrc']
-        else:
+        except:
             rank = rank_element['src']
         rank = RANK_STRINGS[int(Path(rank).stem)-1]
     except Exception as e:
         print(e)
         rank = '???'
-    
     return '{}\n  {}\n  {}'.format(name, rank, summary)
 
-def get_live_match(steam_id):
+async def get_live_match_info(steam_id, update_message):
     """Uses csgo game coordinator to get details of live game
 
     Args:
@@ -199,24 +204,29 @@ def get_live_match(steam_id):
         cs.request_live_game_for_user(SteamID(steam_id).id)
         response, = cs.wait_event('live_game_for_user', timeout=2) #blocking call, should make async
     except TypeError:
-        return 'Player not in game!'
+        await update_message.edit(content='Player not in game!')
+        return
     except:
-        return 'Cannot connect to csgo game coordinator, try again later'
+        await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
+        return
     try:
         players = [str(SteamID(i).as_64) for i in response.matches[0].roundstats_legacy.reservation.account_ids]
     except:
-        return 'Player not in game'
-    players_info = [get_player_data_cloudscraper(i) for i in players]
-    return '\n'.join(players_info)
+        await update_message.edit(content='Player not in game')
+        return
+    players_info = list()
+    for player in players:
+        players_info.append(await get_player_data_cloudscraper(player))
+        await update_message.edit(content='\n'.join(players_info))
 
-async def get_ranks(steam_id, update_message):
-    # status = get_ranks_cloudscraper(steam_id)
-    # if status == 'csgostats has blocked this request, try again in a moment':
-    #     print('Had to resort to fallback')
-    #     await update_message.edit(content='csgostats has blocked this request, dropping to fallback...')
-    #     status = get_ranks_selenium(steam_id)
-    status = get_live_match(steam_id)
-    await update_message.edit(content=status)
+# async def get_ranks(steam_id, update_message):
+#     # status = get_ranks_cloudscraper(steam_id)
+#     # if status == 'csgostats has blocked this request, try again in a moment':
+#     #     print('Had to resort to fallback')
+#     #     await update_message.edit(content='csgostats has blocked this request, dropping to fallback...')
+#     #     status = get_ranks_selenium(steam_id)
+#     status = get_live_match(steam_id)
+#     await update_message.edit(content=status)
 
 async def get_live_player(update_message):
     """Gets a random player currently in a live match
@@ -267,7 +277,7 @@ async def on_message(message):
             print('Request from {}'.format(message.author.name))
             steam_id = message.content.split(' ')[1]
             sent_message = await message.channel.send('Loading...')
-            await get_ranks(steam_id, sent_message)
+            await get_live_match_info(steam_id, sent_message)
         elif message.content.startswith('!checkranks') or message.content.startswith('!checkgame'):
             print('Request from {}'.format(message.author.name))
             steam_id = get_steam_id(message.author.id)
@@ -275,7 +285,7 @@ async def on_message(message):
                 await message.channel.send('Can\'t find your game, no steam id known.')
                 return
             sent_message = await message.channel.send('Loading...')
-            await get_ranks(steam_id, sent_message)
+            await get_live_match_info(steam_id, sent_message)
     except Exception as exception:
         print(exception)
 
