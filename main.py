@@ -163,7 +163,7 @@ async def get_player_data_cloudscraper(steam_id):
         except Exception as e:
             print(e)
             max_attempts-=1
-            await sleep(random.randint(1, 10)/10)
+            await sleep(random.randint(5, 25)/10)
             if max_attempts == 0: return 'Can\'t load csgostats page'
     try:
         soup = BeautifulSoup(page, 'html.parser')
