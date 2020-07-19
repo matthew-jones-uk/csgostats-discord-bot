@@ -56,91 +56,6 @@ def get_proxy():
             return proxy
     return {}
 
-
-def get_ranks_selenium(steam_id):
-    user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36'
-    options = webdriver.ChromeOptions()
-    options.add_argument('headless')
-    options.add_argument(f'user-agent={user_agent}')
-    options.add_argument("window-size=1920x1080")
-    driver = webdriver.Chrome(options=options)
-    try:
-        driver.get('https://csgostats.gg/player/{}#/live'.format(steam_id))
-        WebDriverWait(driver, 10).until(
-            expected_conditions.presence_of_element_located((By.ID, 'player-live'))
-        )
-    except:
-        driver.quit()
-        return 'Cannot load csgostats'
-    try:
-        element = driver.find_element_by_id('player-live')
-        WebDriverWait(driver, 10).until(lambda wd: 'content-tab current-tab' in element.get_attribute('class'))
-        WebDriverWait(driver, 10).until(lambda wd: len(element.find_elements_by_tag_name('style')) != 0)
-    except:
-        driver.quit()
-        return 'Cannot load live data from csgostats, being blocked'
-    if 'This player is current not in a live match!' in element.get_attribute('innerHTML'):
-        driver.quit()
-        return 'Player not in game!'
-    try:
-        element = driver.find_element_by_class_name('scoreboard')
-    except NoSuchElementException:
-        driver.quit()
-        return 'Cannot parse csgostats live data'
-    ranks = {}
-    rows = element.find_elements_by_tag_name('tr')
-    for row in rows:
-        columns = row.find_elements_by_tag_name('td')
-        if len(columns) > 6:
-            name = columns[0].find_element_by_tag_name('span').text
-            try:
-                rank_url = columns[2].find_element_by_tag_name('img').get_attribute('src')
-                rank = RANK_STRINGS[int(Path(rank_url).stem)-1]
-            except:
-                rank = '???'
-            ranks[name] = rank
-    ranks = '\n'.join(['%s: %s' % (key, value) for (key, value) in ranks.items()])
-    driver.quit()
-    return ranks
-
-def get_ranks_cloudscraper(steam_id):
-    scraper = CloudScraper(
-        recaptcha={
-            'provider': 'anticaptcha',
-            'api_key': ANTICAPTCHA_KEY
-        }
-    )
-    try:
-        scraper.get('https://csgostats.gg/player/{}'.format(steam_id))
-        live_json = scraper.get('https://csgostats.gg/player/{}/live'.format(steam_id)).text
-    except Exception as e:
-        print(e)
-        return 'csgostats has blocked this request, try again in a moment'
-    if 'This player is current not in a live match' in live_json:
-        return 'Player not in game!'
-    try:
-        live_html = json.loads(live_json)['content']
-        soup = BeautifulSoup(live_html, 'html.parser')
-        tbody_list = soup.find_all('tbody')
-        ranks = {}
-        for j in range(0, 3, 2):
-            tr_data = tbody_list[j].find_all('tr')
-            for i in range(5):
-                td_data = tr_data[i].find_all('td')
-                try:
-                    name = td_data[0].a.span.string
-                except:
-                    name = '???'
-                try:
-                    rank = RANK_STRINGS[int(Path(td_data[2].img['src']).stem)-1]
-                except:
-                    rank = '???'
-                ranks[name] = rank
-        ranks = '\n'.join(['%s: %s' % (key, value) for (key, value) in ranks.items()])
-    except:
-        return 'Cannot parse csgostats live data'
-    return ranks
-
 async def get_player_data_cloudscraper(steam_id):
     """Uses the cloudscraper library to get player information from csgostats.gg
 
@@ -163,7 +78,7 @@ async def get_player_data_cloudscraper(steam_id):
         except Exception as e:
             print(e)
             max_attempts-=1
-            await sleep(random.randint(5, 25)/10)
+            await sleep(random.randint(2, 15)/10)
             if max_attempts == 0: return 'Can\'t load csgostats page'
     try:
         soup = BeautifulSoup(page, 'html.parser')
@@ -219,15 +134,6 @@ async def get_live_match_info(steam_id, update_message):
         players_info.append(await get_player_data_cloudscraper(player))
         await update_message.edit(content='\n'.join(players_info))
 
-# async def get_ranks(steam_id, update_message):
-#     # status = get_ranks_cloudscraper(steam_id)
-#     # if status == 'csgostats has blocked this request, try again in a moment':
-#     #     print('Had to resort to fallback')
-#     #     await update_message.edit(content='csgostats has blocked this request, dropping to fallback...')
-#     #     status = get_ranks_selenium(steam_id)
-#     status = get_live_match(steam_id)
-#     await update_message.edit(content=status)
-
 async def get_live_player(update_message):
     """Gets a random player currently in a live match
 
@@ -247,7 +153,9 @@ async def get_live_player(update_message):
     except:
         await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
         return
-    player = response.matches[0].roundstats_legacy.reservation.account_ids[0] #TODO: make random
+    player = response.matches[random.randint(0,
+            len(response.matches))].roundstats_legacy.reservation.account_ids[random.randint(0,
+             len(response.matches.roundstats_legacy.reservation.account_ids))] #TODO: make random
     await update_message.edit(content=SteamID(player).as_64)
 
 @steam.on('logged_on')
