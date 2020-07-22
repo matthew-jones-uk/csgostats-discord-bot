@@ -194,7 +194,7 @@ async def on_message(message):
             print('Random player request from {}'.format(message.author.name))
             sent_message = await message.channel.send('Loading...')
             await get_live_player(sent_message)
-        if message.content.startswith('!checkranksof'):
+        if message.content.startswith('!checkranksof') or message.content.startswith('!checkgameof'):
             print('Request from {}'.format(message.author.name))
             steam_id = message.content.split(' ')[1]
             sent_message = await message.channel.send('Loading...')
