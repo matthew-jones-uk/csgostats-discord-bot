@@ -2,6 +2,7 @@ import gevent.monkey
 gevent.monkey.patch_all()
 import json
 import random
+import configparser
 import discord
 import requests
 import cloudscraper
@@ -29,9 +30,8 @@ RANK_STRINGS = ['S1', 'S2', 'S3', 'S4', 'SE', 'SEM', 'GN1', 'GN2', 'GN3', 'GN4',
 PLAYER_IDS = {136875501544407041: 76561198091230520, 200924489582772235: 76561198140621134, 234383468417646594: 76561198118173367,
             409385026598469643: 76561198251909246, 667165895201914881: 76561198118694624, 200929868802686976: 76561198093943295,
             191284442696908800: 76561198102369818, 136875471328641024: 76561198085285285}
+ANTICAPTCHA_ENABLED = False
 PROXIES = []
-DISCORD_TOKEN = 'NzI1NjU5MDc1MzMzMDYyNjY3.XwUeAw.wExIe5URkpmP5zjTio8otOtHUv4'
-ANTICAPTCHA_KEY = 'de94b455e7c758495f15a15e11c334f2'
 CLOUDSCRAPER_SESSION = None
 
 def get_steam_id(discord_id):
@@ -62,14 +62,18 @@ async def get_player_data_cloudscraper(steam_id):
     Args:
         steam_id (string): Steam64ID of user
     """
-    scraper = cloudscraper.create_scraper(
-        sess=CLOUDSCRAPER_SESSION, #should be passed by reference and therefore up-to-date
-        recaptcha={
-        'provider': 'anticaptcha',
-        'api_key': ANTICAPTCHA_KEY
-        }
-    )
-    print(CLOUDSCRAPER_SESSION)
+    if ANTICAPTCHA_ENABLED:
+        scraper = cloudscraper.create_scraper(
+            sess=CLOUDSCRAPER_SESSION, #should be passed by reference and therefore up-to-date
+            recaptcha={
+            'provider': 'anticaptcha',
+            'api_key': ANTICAPTCHA_KEY
+            }
+        )
+    else:
+        scraper = cloudscraper.create_scraper(
+            sess=CLOUDSCRAPER_SESSION #should be passed by reference and therefore up-to-date
+        )
     #TODO: Try and make try/excepts cleaner
     max_attempts = 5
     while max_attempts > 0:
@@ -169,6 +173,7 @@ async def get_live_player(update_message):
 @steam.on('logged_on')
 @steam.on('reconnect')
 def start_csgo():
+    print('Logged into Steam')
     if cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
         cs.launch()
 
@@ -206,5 +211,15 @@ async def on_message(message):
         print(exception)
 
 if __name__ == '__main__':
-    steam.login()
+    config = configparser.ConfigParser()
+    config.read('./config.conf')
+    DISCORD_TOKEN = config.get('discord', 'token')
+    if config.getboolean('anticaptcha', 'enabled'):
+        print('Anticaptcha enabled')
+        ANTICAPTCHA_KEY = config.get('anticaptcha', 'token')
+    else:
+        ANTICAPTCHA_ENABLED = True
+    STEAM_USERNAME = config.get('steam', 'username')
+    STEAM_PASSWORD = config.get('steam', 'password')
+    steam.login(username=STEAM_USERNAME, password=STEAM_PASSWORD)
     client.run(DISCORD_TOKEN)
