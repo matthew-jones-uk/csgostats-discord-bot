@@ -98,7 +98,6 @@ async def get_player_data_cloudscraper(steam_id):
     except:
         summary = '???'
     try:
-        rank_element = None
         rank_element = soup.find('img', width='92')
         try:
             rank = rank_element['data-cfsrc']
@@ -108,7 +107,12 @@ async def get_player_data_cloudscraper(steam_id):
     except Exception as e:
         print(e)
         rank = '???'
-    return '{}\n  {}\n  {}'.format(name, rank, summary)
+    try:
+        games_recorded = soup.find('span', {'class': 'total-value'}).string
+        games_recorded = ' with ' + games_recorded + ' games recorded on csgostats'
+    except:
+        games_recorded = ' with unknown (error) games recorded'
+    return '{}\n  {}\n  {}'.format(name, rank + games_recorded, summary)
 
 async def get_live_match_info(steam_id, update_message):
     """Uses csgo game coordinator to get details of live game
