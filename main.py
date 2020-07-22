@@ -76,11 +76,15 @@ async def get_player_data_cloudscraper(steam_id):
         try:
             page = scraper.get('https://www.csgostats.gg/player/{}'.format(steam_id)).text
             break
+        except cloudscraper.exceptions.CloudflareCode1020 as e:
+            max_attempts-=1
+            await sleep(random.randint(2, 15)/10)
+            if max_attempts == 0: return 'Can\'t load csgostats page, being blocked by cloudflare'
         except Exception as e:
             print(e)
             max_attempts-=1
             await sleep(random.randint(2, 15)/10)
-            if max_attempts == 0: return 'Can\'t load csgostats page'
+            if max_attempts == 0: return 'Can\'t load csgostats page, unknown error'
     try:
         soup = BeautifulSoup(page, 'html.parser')
     except:
