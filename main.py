@@ -132,15 +132,12 @@ async def get_live_match_info(steam_id, update_message):
         elif cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
             cs.launch()
         cs.request_live_game_for_user(SteamID(steam_id).id)
-        response_tuple = cs.wait_event('live_game_for_user', timeout=3) #blocking call, should make async
-        if response_tuple is None:
-            raise gevent.Timeout
-        else:
-            response, = response_tuple
+        response, = cs.wait_event('live_game_for_user', timeout=3, raises=True) #blocking call, should make async
     except TypeError:
         await update_message.edit(content='Player not in game!')
         return
     except gevent.Timeout:
+        print('Steam: logged in {}, connected {}. CS: connection status {}'.format(steam.logged_on, steam.connected, cs.connection_status))
         await update_message.edit(content='Request timed out to Valve\'s servers')
         return
     except:
@@ -168,15 +165,12 @@ async def get_live_player(update_message):
         elif cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
             cs.launch()
         cs.request_current_live_games()
-        response_tuple = cs.wait_event('current_live_games', timeout=3) #blocking call, should make async
-        if response_tuple is None:
-            raise gevent.Timeout
-        else:
-            response, = response_tuple
+        response, = cs.wait_event('current_live_games', timeout=3, raises=True) #blocking call, should make async
     except TypeError:
-        await update_message.edit(content='No live games found!')
+        await update_message.edit(content='No live games found!') #this may be a bit generic and even incorrect for a TypeError
         return
     except gevent.Timeout:
+        print('Steam: logged in {}, connected {}. CS: connection status {}'.format(steam.logged_on, steam.connected, cs.connection_status))
         await update_message.edit(content='Request timed out to Valve\'s servers')
         return
     except:
@@ -186,15 +180,21 @@ async def get_live_player(update_message):
     player = random.choice(match.roundstats_legacy.reservation.account_ids)
     await update_message.edit(content=SteamID(player).as_64)
 
+@steam.on('connected')
+def steam_conncted():
+    print('Connected to {}'.format(steam.current_server_addr))
+
 @steam.on('logged_on')
 @steam.on('reconnect')
 def start_csgo():
-    print('Logged into Steam')
+    print('Logged into Steam as {}'.format(steam.user.name))
     if cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
+        print('Launching CS')
         cs.launch()
 
 @steam.on('disconnected')
 def steam_relogin(): #this may not be the right way to handle a steam disconnect
+    print('Relogin...')
     steam.relogin() #should probably implement steam.relogin_available
 
 @client.event
