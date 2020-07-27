@@ -68,11 +68,13 @@ async def get_player_data_cloudscraper(steam_id):
             recaptcha={
             'provider': 'anticaptcha',
             'api_key': ANTICAPTCHA_KEY
-            }
+            },
+            doubleDown=True
         )
     else:
         scraper = cloudscraper.create_scraper(
-            sess=CLOUDSCRAPER_SESSION #should be passed by reference and therefore up-to-date
+            sess=CLOUDSCRAPER_SESSION, #should be passed by reference and therefore up-to-date
+            doubleDown=True
         )
     #TODO: Try and make try/excepts cleaner
     max_attempts = 5
