@@ -132,9 +132,16 @@ async def get_live_match_info(steam_id, update_message):
         elif cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
             cs.launch()
         cs.request_live_game_for_user(SteamID(steam_id).id)
-        response, = cs.wait_event('live_game_for_user', timeout=2) #blocking call, should make async
+        response_tuple = cs.wait_event('live_game_for_user', timeout=3) #blocking call, should make async
+        if response_tuple is None:
+            raise gevent.Timeout
+        else:
+            response, = response_tuple
     except TypeError:
         await update_message.edit(content='Player not in game!')
+        return
+    except gevent.Timeout:
+        await update_message.edit(content='Request timed out to Valve\'s servers')
         return
     except:
         await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
@@ -161,9 +168,16 @@ async def get_live_player(update_message):
         elif cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
             cs.launch()
         cs.request_current_live_games()
-        response, = cs.wait_event('current_live_games', timeout=2) #blocking call, should make async
+        response_tuple = cs.wait_event('current_live_games', timeout=3) #blocking call, should make async
+        if response_tuple is None:
+            raise gevent.Timeout
+        else:
+            response, = response_tuple
     except TypeError:
         await update_message.edit(content='No live games found!')
+        return
+    except gevent.Timeout:
+        await update_message.edit(content='Request timed out to Valve\'s servers')
         return
     except:
         await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
