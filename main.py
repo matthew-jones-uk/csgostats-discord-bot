@@ -1,4 +1,5 @@
 import gevent.monkey
+
 gevent.monkey.patch_all()
 import json
 import random
@@ -6,6 +7,7 @@ import configparser
 import discord
 import requests
 import cloudscraper
+import gevent
 from pathlib import Path
 from asyncio import sleep
 from steam.client import SteamClient
@@ -25,28 +27,55 @@ client = discord.Client()
 steam = SteamClient()
 cs = CSGOClient(steam)
 
-RANK_STRINGS = ['S1', 'S2', 'S3', 'S4', 'SE', 'SEM', 'GN1', 'GN2', 'GN3', 'GN4', 'MG1', 'MG2', 'MGE', 'DMG', 'LE', 'LEM', 'SMFC', 'Global']
-#matt, hugo, jack, george, nick, thett, michael, face
-PLAYER_IDS = {136875501544407041: 76561198091230520, 200924489582772235: 76561198140621134, 234383468417646594: 76561198118173367,
-            409385026598469643: 76561198251909246, 667165895201914881: 76561198118694624, 200929868802686976: 76561198093943295,
-            191284442696908800: 76561198102369818, 136875471328641024: 76561198085285285}
+RANK_STRINGS = [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "SE",
+    "SEM",
+    "GN1",
+    "GN2",
+    "GN3",
+    "GN4",
+    "MG1",
+    "MG2",
+    "MGE",
+    "DMG",
+    "LE",
+    "LEM",
+    "SMFC",
+    "Global",
+]
+# matt, hugo, jack, george, nick, thett, michael, face
+PLAYER_IDS = {
+    136875501544407041: 76561198091230520,
+    200924489582772235: 76561198140621134,
+    234383468417646594: 76561198118173367,
+    409385026598469643: 76561198251909246,
+    667165895201914881: 76561198118694624,
+    200929868802686976: 76561198093943295,
+    191284442696908800: 76561198102369818,
+    136875471328641024: 76561198085285285,
+}
 ANTICAPTCHA_ENABLED = False
 PROXIES = []
 CLOUDSCRAPER_SESSION = None
 
+
 def get_steam_id(discord_id):
-    if discord_id in PLAYER_IDS: return PLAYER_IDS[discord_id]
+    if discord_id in PLAYER_IDS:
+        return PLAYER_IDS[discord_id]
     return -1
+
 
 def check_proxy_working(proxy):
     try:
-        requests.get('http://google.com',
-            proxies = proxy,
-            timeout = 0.5
-        )
+        requests.get("http://google.com", proxies=proxy, timeout=0.5)
         return True
     except:
         return False
+
 
 def get_proxy():
     for _ in range(len(PROXIES)):
@@ -56,6 +85,7 @@ def get_proxy():
             return proxy
     return {}
 
+
 async def get_player_data_cloudscraper(steam_id):
     """Uses the cloudscraper library to get player information from csgostats.gg
 
@@ -64,61 +94,64 @@ async def get_player_data_cloudscraper(steam_id):
     """
     if ANTICAPTCHA_ENABLED:
         scraper = cloudscraper.create_scraper(
-            sess=CLOUDSCRAPER_SESSION, #should be passed by reference and therefore up-to-date
-            recaptcha={
-            'provider': 'anticaptcha',
-            'api_key': ANTICAPTCHA_KEY
-            },
-            doubleDown=True
+            sess=CLOUDSCRAPER_SESSION,  # should be passed by reference and therefore up-to-date
+            recaptcha={"provider": "anticaptcha", "api_key": ANTICAPTCHA_KEY},
+            doubleDown=True,
         )
     else:
         scraper = cloudscraper.create_scraper(
-            sess=CLOUDSCRAPER_SESSION, #should be passed by reference and therefore up-to-date
-            doubleDown=True
+            sess=CLOUDSCRAPER_SESSION,  # should be passed by reference and therefore up-to-date
+            doubleDown=True,
         )
-    #TODO: Try and make try/excepts cleaner
+    # TODO: Try and make try/excepts cleaner
+    page = None
     max_attempts = 5
     while max_attempts > 0:
         try:
-            page = scraper.get('https://www.csgostats.gg/player/{}'.format(steam_id)).text
+            page = scraper.get(
+                "https://www.csgostats.gg/player/{}".format(steam_id)
+            ).text
             break
         except cloudscraper.exceptions.CloudflareCode1020 as e:
-            max_attempts-=1
-            await sleep(random.randint(2, 15)/10)
-            if max_attempts == 0: return 'Can\'t load csgostats page, being blocked by cloudflare'
+            max_attempts -= 1
+            await sleep(random.randint(2, 15) / 10)
+            if max_attempts == 0:
+                return "Can't load csgostats page, being blocked by cloudflare"
         except Exception as e:
             print(e)
-            max_attempts-=1
-            await sleep(random.randint(2, 15)/10)
-            if max_attempts == 0: return 'Can\'t load csgostats page, unknown error'
+            max_attempts -= 1
+            await sleep(random.randint(2, 15) / 10)
+            if max_attempts == 0:
+                return "Can't load csgostats page, unknown error"
     try:
-        soup = BeautifulSoup(page, 'html.parser')
+        soup = BeautifulSoup(page, "html.parser")
     except:
-        return 'Can\'t parse csgostats page'
+        return "Can't parse csgostats page"
     try:
-        name = soup.find('div', id='player-name').string
+        name = soup.find("div", id="player-name").string
     except:
-        name = 'Cannot load name of {}'.format(steam_id)
+        name = "Cannot load name of {}".format(steam_id)
     try:
-        summary = soup.find('meta', property='og:description')['content']
+        summary = soup.find("meta", property="og:description")["content"]
     except:
-        summary = '???'
+        summary = "???"
     try:
-        rank_element = soup.find('img', width='92')
+        rank_element = soup.find("img", width="92")
         try:
-            rank = rank_element['data-cfsrc']
+            rank = rank_element["data-cfsrc"]
         except:
-            rank = rank_element['src']
-        rank = RANK_STRINGS[int(Path(rank).stem)-1]
+            rank = rank_element["src"]
+        rank = RANK_STRINGS[int(Path(rank).stem) - 1]
     except Exception as e:
         print(e)
-        rank = '???'
+        rank = "???"
     try:
-        games_recorded = soup.find('span', {'class': 'total-value'}).string
-        games_recorded = ' with ' + games_recorded + ' games recorded on csgostats'
+        games_recorded = soup.find("span", {"class": "total-value"}).string
+        games_recorded = " with " + games_recorded + " games recorded on csgostats"
     except:
-        games_recorded = ' with unknown (error) games recorded'
-    return '{}\n  {}\n  {}'.format(name, rank + games_recorded, summary)
+        games_recorded = " with unknown (error) games recorded"
+    return "{}\n  {}\n  {}".format(name, rank + games_recorded, summary)
+
 
 async def get_live_match_info(steam_id, update_message):
     """Uses csgo game coordinator to get details of live game
@@ -132,26 +165,38 @@ async def get_live_match_info(steam_id, update_message):
         elif cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
             cs.launch()
         cs.request_live_game_for_user(SteamID(steam_id).id)
-        response, = cs.wait_event('live_game_for_user', timeout=3, raises=True) #blocking call, should make async
+        (response,) = cs.wait_event(
+            "live_game_for_user", timeout=3, raises=True
+        )  # blocking call, should make async
     except TypeError:
-        await update_message.edit(content='Player not in game!')
+        await update_message.edit(content="Player not in game!")
         return
     except gevent.Timeout:
-        print('Steam: logged in {}, connected {}. CS: connection status {}'.format(steam.logged_on, steam.connected, cs.connection_status))
-        await update_message.edit(content='Request timed out to Valve\'s servers')
+        print(
+            "Steam: logged in {}, connected {}. CS: connection status {}".format(
+                steam.logged_on, steam.connected, cs.connection_status
+            )
+        )
+        await update_message.edit(content="Request timed out to Valve's servers")
         return
     except:
-        await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
+        await update_message.edit(
+            content="Cannot connect to csgo game coordinator, try again later"
+        )
         return
     try:
-        players = [str(SteamID(i).as_64) for i in response.matches[0].roundstats_legacy.reservation.account_ids]
+        players = [
+            str(SteamID(i).as_64)
+            for i in response.matches[0].roundstats_legacy.reservation.account_ids
+        ]
     except:
-        await update_message.edit(content='Player not in game')
+        await update_message.edit(content="Player not in game")
         return
     players_info = list()
     for player in players:
         players_info.append(await get_player_data_cloudscraper(player))
-        await update_message.edit(content='\n'.join(players_info))
+        await update_message.edit(content="\n".join(players_info))
+
 
 async def get_live_player(update_message):
     """Gets a random player currently in a live match
@@ -165,77 +210,97 @@ async def get_live_player(update_message):
         elif cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
             cs.launch()
         cs.request_current_live_games()
-        response, = cs.wait_event('current_live_games', timeout=3, raises=True) #blocking call, should make async
+        (response,) = cs.wait_event(
+            "current_live_games", timeout=3, raises=True
+        )  # blocking call, should make async
     except TypeError:
-        await update_message.edit(content='No live games found!') #this may be a bit generic and even incorrect for a TypeError
+        await update_message.edit(
+            content="No live games found!"
+        )  # this may be a bit generic and even incorrect for a TypeError
         return
     except gevent.Timeout:
-        print('Steam: logged in {}, connected {}. CS: connection status {}'.format(steam.logged_on, steam.connected, cs.connection_status))
-        await update_message.edit(content='Request timed out to Valve\'s servers')
+        print(
+            "Steam: logged in {}, connected {}. CS: connection status {}".format(
+                steam.logged_on, steam.connected, cs.connection_status
+            )
+        )
+        await update_message.edit(content="Request timed out to Valve's servers")
         return
     except:
-        await update_message.edit(content='Cannot connect to csgo game coordinator, try again later')
+        await update_message.edit(
+            content="Cannot connect to csgo game coordinator, try again later"
+        )
         return
     match = random.choice(response.matches)
     player = random.choice(match.roundstats_legacy.reservation.account_ids)
     await update_message.edit(content=SteamID(player).as_64)
 
-@steam.on('connected')
-def steam_conncted():
-    print('Connected to {}'.format(steam.current_server_addr))
 
-@steam.on('logged_on')
-@steam.on('reconnect')
+@steam.on("connected")
+def steam_conncted():
+    print("Connected to {}".format(steam.current_server_addr))
+
+
+@steam.on("logged_on")
+@steam.on("reconnect")
 def start_csgo():
-    print('Logged into Steam as {}'.format(steam.user.name))
+    print("Logged into Steam as {}".format(steam.user.name))
     if cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
-        print('Launching CS')
+        print("Launching CS")
         cs.launch()
 
-@steam.on('disconnected')
-def steam_relogin(): #this may not be the right way to handle a steam disconnect
-    print('Relogin...')
-    steam.relogin() #should probably implement steam.relogin_available
+
+@steam.on("disconnected")
+def steam_relogin():  # this may not be the right way to handle a steam disconnect
+    print("Relogin...")
+    steam.relogin()  # should probably implement steam.relogin_available
+
 
 @client.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+    print("We have logged in as {0.user}".format(client))
+
 
 @client.event
 async def on_message(message):
     if message.author == client.user:
         return
     try:
-        if message.content.startswith('!randomliveplayer'):
-            print('Random player request from {}'.format(message.author.name))
-            sent_message = await message.channel.send('Loading...')
+        if message.content.startswith("!randomliveplayer"):
+            print("Random player request from {}".format(message.author.name))
+            sent_message = await message.channel.send("Loading...")
             await get_live_player(sent_message)
-        if message.content.startswith('!checkranksof') or message.content.startswith('!checkgameof'):
-            print('Request from {}'.format(message.author.name))
-            steam_id = message.content.split(' ')[1]
-            sent_message = await message.channel.send('Loading...')
+        if message.content.startswith("!checkranksof") or message.content.startswith(
+            "!checkgameof"
+        ):
+            print("Request from {}".format(message.author.name))
+            steam_id = message.content.split(" ")[1]
+            sent_message = await message.channel.send("Loading...")
             await get_live_match_info(steam_id, sent_message)
-        elif message.content.startswith('!checkranks') or message.content.startswith('!checkgame'):
-            print('Request from {}'.format(message.author.name))
+        elif message.content.startswith("!checkranks") or message.content.startswith(
+            "!checkgame"
+        ):
+            print("Request from {}".format(message.author.name))
             steam_id = get_steam_id(message.author.id)
             if steam_id == -1:
-                await message.channel.send('Can\'t find your game, no steam id known.')
+                await message.channel.send("Can't find your game, no steam id known.")
                 return
-            sent_message = await message.channel.send('Loading...')
+            sent_message = await message.channel.send("Loading...")
             await get_live_match_info(steam_id, sent_message)
     except Exception as exception:
         print(exception)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     config = configparser.ConfigParser()
-    config.read('./config.conf')
-    DISCORD_TOKEN = config.get('discord', 'token')
-    if config.getboolean('anticaptcha', 'enabled'):
-        print('Anticaptcha enabled')
-        ANTICAPTCHA_KEY = config.get('anticaptcha', 'token')
+    config.read("./config.conf")
+    DISCORD_TOKEN = config.get("discord", "token")
+    if config.getboolean("anticaptcha", "enabled"):
+        print("Anticaptcha enabled")
+        ANTICAPTCHA_KEY = config.get("anticaptcha", "token")
     else:
         ANTICAPTCHA_ENABLED = True
-    STEAM_USERNAME = config.get('steam', 'username')
-    STEAM_PASSWORD = config.get('steam', 'password')
+    STEAM_USERNAME = config.get("steam", "username")
+    STEAM_PASSWORD = config.get("steam", "password")
     steam.login(username=STEAM_USERNAME, password=STEAM_PASSWORD)
     client.run(DISCORD_TOKEN)
