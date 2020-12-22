@@ -189,7 +189,9 @@ async def get_live_match_info(steam_id, update_message):
         return
     players_info = list()
     for player in players:
-        players_info.append(await get_player_data_cloudscraper(player))
+        player_live_data = await get_player_data_cloudscraper(player)
+        player_live_data = player_live_data.replace("\\", "")
+        players_info.append(player_live_data)
         await update_message.edit(content="\n".join(players_info))
 
 
