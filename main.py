@@ -239,6 +239,9 @@ def steam_conncted():
 @steam.on("logged_on")
 @steam.on("reconnect")
 def start_csgo():
+    if steam.user.name is None:
+        # this is to try and quickly fix crashing when the steam servers go down for regular maintenance
+        steam.relogin()
     print("Logged into Steam as {}".format(steam.user.name))
     if cs.connection_status is not GCConnectionStatus.HAVE_SESSION:
         print("Launching CS")
