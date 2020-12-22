@@ -1,13 +1,8 @@
 import gevent.monkey
 
 gevent.monkey.patch_all()
-import json
-import random
-import configparser
-import discord
-import requests
-import cloudscraper
-import gevent
+import random, configparser
+import discord, requests, cloudscraper, gevent
 from pathlib import Path
 from asyncio import sleep
 from steam.client import SteamClient
